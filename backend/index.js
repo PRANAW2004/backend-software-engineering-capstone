@@ -4,6 +4,9 @@ import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import cookieParser from 'cookie-parser';
+import { connectDB, getDB } from "./db/conn.js";
+import { ObjectId } from "mongodb";
+import multer from 'multer';
 import jwt from 'jsonwebtoken';
 dotenv.config();
 
@@ -19,11 +22,16 @@ app.use(cookieParser());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
+await connectDB().then((e) => {
+    console.log("db connected successfully:", e);
+});
+
 app.get("/", (req, res) => {
     res.json("hello world");
 });
 
 const API_KEY = process.env.API_KEY;
+const OPENROUTE_API_KEY = process.env.OPENROUTE_API_KEY;
 
 app.post("/signup", async (req, res) => {
     console.log(req.body);
@@ -38,7 +46,7 @@ app.post("/signup", async (req, res) => {
             }
         ).catch((err) => {
             console.log(err.response.data);
-            res.json({error: err.response.data.error.message})
+            res.json({ error: err.response.data.error.message })
             return
         });
 
@@ -85,12 +93,13 @@ app.post("/google-signin", async (req, res) => {
             email: response.data.email,
         });
     } catch (error) {
-        console.log(error.response.data);
+        console.log("error is ", error.response.data);
         res.status(400).json({
             error: error.response.data.error.message,
         });
     }
 });
+
 
 app.post("/login", async (req, res) => {
     const { email, password } = req.body;
@@ -103,7 +112,7 @@ app.post("/login", async (req, res) => {
                 returnSecureToken: true
             }
         ).catch((err) => {
-            res.json({error: err.response.data.error.message})
+            res.json({ error: err.response.data.error.message })
             return
         });
 
@@ -119,7 +128,8 @@ app.post("/login", async (req, res) => {
 
         res.status(200).json({
             message: "Login successful",
-            userId: response.data.localId
+            userId: response.data.localId,
+
         });
     } catch (error) {
         res.status(400).json({
@@ -137,7 +147,7 @@ app.get("/login-state", (req, res) => {
 
     try {
         // decode token to get email/userId
-        const decoded = jwt.decode(token); 
+        const decoded = jwt.decode(token);
 
         return res.json({
             loggedIn: true,
@@ -150,17 +160,235 @@ app.get("/login-state", (req, res) => {
     }
 });
 
-app.post("/logout", (req,res) => {
-    res.clearCookie("token", {
-    httpOnly: true,
-    secure: false, //need to change to true when deployed
-    sameSite: "lax",
-    path: "/"
-  });
+app.post("/logout", (req, res) => {
+    try {
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: false, //need to change to true when deployed
+            sameSite: "lax",
+            path: "/"
+        });
 
-  return res.json({ message: "Logged out successfully" });
+        return res.json({ message: "Logged out successfully" });
+    } catch (err) {
+        console.log(err);
+    }
+
 });
 
+
+app.post("/api/cookbot", async (req, res) => {
+    const { message } = req.body;
+
+    try {
+        const response = await axios.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            {
+                model: "meta-llama/llama-3-8b-instruct",
+                messages: [
+                    {
+                        role: "system",
+                        content: `
+You are CookMate, an AI cooking assistant.  
+You ONLY respond to questions about:
+- cooking  
+- recipes  
+- ingredients  
+- nutrition  
+- kitchen tips  
+- cooking time  
+- substitutions  
+- food storage  
+- meal planning  
+
+If the user asks anything unrelated, politely say:
+"I'm here only to help with cooking and recipes!"  
+`
+                    },
+                    { role: "user", content: message }
+                ]
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${OPENROUTE_API_KEY}`,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+        res.json({ reply: response.data.choices[0].message.content });
+
+    } catch (err) {
+        console.error(err.response?.data || err);
+        res.status(500).json({ error: "Cooking AI error" });
+    }
+});
+
+app.get("/recipes/:category", async (req, res) => {
+    const { category } = req.params;
+    console.log(category);
+    try {
+        const response = await axios.get(
+            `https://www.themealdb.com/api/json/v1/1/filter.php?c=${category}`
+        );
+        console.log(response.data);
+        res.json(response.data);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to fetch recipes" });
+    }
+});
+
+app.get("/recipes/type/:category", async (req, res) => {
+    const { category } = req.params;
+    console.log(category);
+    try {
+        const response = await axios.get(
+            `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${category}`
+        );
+        res.json(response.data.meals);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to fetch recipes" });
+    }
+});
+
+app.get("/api/recipes/random", async (req, res) => {
+    try {
+        const promises = Array.from({ length: 50 }, () =>
+            axios.get("https://www.themealdb.com/api/json/v1/1/random.php").then(r => r.data.meals[0])
+        );
+        const meals = await Promise.all(promises);
+        console.log(meals);
+        res.json(meals);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to fetch random recipes" });
+    }
+});
+
+//CRUD operations to add, update, read and delete the recipes of the user
+const upload = multer(); 
+
+app.post("/add-recipe", upload.single("image"), async (req, res) => {
+  const userId = req.body.userId;
+  const name = req.body.name;
+  const category = req.body.category;
+  const area = req.body.area;
+  const tags = req.body.tags;
+  const ingredients = JSON.parse(req.body.ingredients || "[]");
+  const instructions = req.body.instructions;
+  const youtubeUrl = req.body.youtubeUrl;
+  const image = req.file; 
+
+  console.log({
+    userId,
+    name,
+    category,
+    area,
+    tags,
+    ingredients,
+    instructions,
+    youtubeUrl,
+    image,
+  });
+
+  const db = getDB();
+  try {
+    const result = await db.collection("recipes").insertOne({
+      userId,
+      name,
+      category,
+      area,
+      tags,
+      ingredients,
+      instructions,
+      youtubeUrl,
+      image: image ? image.buffer : null,
+    });
+
+    res.json({ message: "Recipe added", result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/get-own-recipes/:id", async (req, res) => {
+  const userId = req.params.id;
+  const db = getDB();
+
+  try {
+    const recipes = await db
+      .collection("recipes")
+      .find({ userId })
+      .toArray();
+
+    res.json(recipes); 
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/add-recipe/:id", upload.single("image"), async (req, res) => {
+  const recipeId = req.params.id;
+  const db = getDB();
+
+  try {
+    const updatedFields = {
+      name: req.body.name,
+      category: req.body.category,
+      area: req.body.area,
+      tags: req.body.tags,
+      ingredients: JSON.parse(req.body.ingredients || "[]"),
+      instructions: req.body.instructions,
+      youtubeUrl: req.body.youtubeUrl,
+    };
+
+    if (req.file) {
+      updatedFields.image = req.file.buffer; 
+    }
+
+     const result = await db
+      .collection("recipes")
+      .updateOne(
+        { _id: new ObjectId(recipeId) },
+        { $set: updatedFields }
+      );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "Recipe not found" });
+    }
+
+    res.json({ message: "Recipe updated successfully", result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/add-recipe/delete/:id/:userId", async (req, res) => {
+  const { id, userId } = req.params;
+  const db = getDB();
+
+  try {
+    const result = await db.collection("recipes").deleteOne({
+      _id: new ObjectId(id),
+      userId: userId,
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: "Recipe not found or you are not authorized" });
+    }
+
+    res.json({ message: "Recipe deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.listen(PORT, () => {
     console.log("Server listening on port", PORT);
