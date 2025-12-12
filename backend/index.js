@@ -325,7 +325,20 @@ app.get("/get-own-recipes/:id", async (req, res) => {
       .find({ userId })
       .toArray();
 
-    res.json(recipes); 
+    const formattedRecipes = recipes.map(recipe => {
+      let imageUrl = null;
+
+      if (recipe.image && recipe.image.buffer) {
+        imageUrl = `data:image/jpeg;base64,${recipe.image.buffer.toString("base64")}`;
+      }
+
+      return {
+        ...recipe,
+        imageUrl,
+      };
+    });
+
+    res.json(formattedRecipes); 
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -384,6 +397,30 @@ app.delete("/add-recipe/delete/:id/:userId", async (req, res) => {
     }
 
     res.json({ message: "Recipe deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/recipe/own/:id", async (req, res) => {
+  const db = getDB();
+  const recipeId = req.params.id;
+
+  try {
+    const recipe = await db
+      .collection("recipes")
+      .findOne({ _id: new ObjectId(recipeId) });
+
+    if (!recipe) return res.status(404).json({ error: "Recipe not found" });
+
+    // Convert image to base64
+    let imageUrl = null;
+    if (recipe.image?.buffer) {
+      imageUrl = `data:image/jpeg;base64,${recipe.image.buffer.toString("base64")}`;
+    }
+
+    res.json({ ...recipe, imageUrl });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
