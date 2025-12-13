@@ -16,6 +16,7 @@ const app = express();
 
 app.use(cors({
   origin: "https://capstone-project-frontend.ue.r.appspot.com",
+  // origin: "http://localhost:3000",
   credentials: true
 }));
 app.use(cookieParser());
