@@ -37,7 +37,7 @@ try {
 
 
 app.get("/", (req, res) => {
-  res.json("hello world");
+  res.json({"message":"This is the server page for software engineering capstone project"});
 });
 
 const API_KEY = process.env.API_KEY;
