@@ -4,6 +4,13 @@
 - backend link: https://exalted-legacy-481104-h4.ue.r.appspot.com/
 - video link: 
 
+## DEV CONTAINER INFORMATION
+- The Dev container used in this project is the Docker container.
+- There are 2 Dev containers used in this capstone project, one for the frontend and one for the backend.
+- The frontend container contains the frontend folder which contains the react code.
+- The backend container contains the backend folder which contains the express code.
+- Both the containers are pushed into GitHub for version control.
+
 ## CONFIGURATION AND SETUP
 
 - Clone the repository which contains .devcontainer
