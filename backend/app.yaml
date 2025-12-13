@@ -1,7 +1,0 @@
-runtime: nodejs22
-entrypoint: node index.js
-env_variables:
-  NODE_ENV: "production"
-  API_KEY: "AIzaSyCv6YSCCEUlJWiLQgm3YCK2KlQAbrmh9CY"
-  OPENROUTE_API_KEY: "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"
-  MONGO_URI: "mongodb+srv://pranawrk1_db:Pranaw1234@cluster0.dsca2to.mongodb.net/?appName=Cluster0"
