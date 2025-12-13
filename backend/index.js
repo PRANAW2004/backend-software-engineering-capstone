@@ -8,187 +8,197 @@ import { connectDB, getDB } from "./db/conn.js";
 import { ObjectId } from "mongodb";
 import multer from 'multer';
 import jwt from 'jsonwebtoken';
-dotenv.config();
+// dotenv.config();
 
 const PORT = process.env.PORT || 3001;
 
 const app = express();
 
 app.use(cors({
-    origin: "http://localhost:3000",
-    credentials: true
+  origin: "https://capstone-project-frontend.ue.r.appspot.com",
+  credentials: true
 }));
 app.use(cookieParser());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-await connectDB().then((e) => {
-    console.log("db connected successfully:", e);
-});
+// await connectDB().then((e) => {
+//   console.log("db connected successfully:", e);
+// });
+
+try {
+  await connectDB();
+  console.log("MongoDB connected successfully");
+} catch (err) {
+  console.error("MongoDB connection failed", err);
+  process.exit(1); // 🔥 DO NOT start server without DB
+}
+
 
 app.get("/", (req, res) => {
-    res.json("hello world");
+  res.json("hello world");
 });
 
 const API_KEY = process.env.API_KEY;
 const OPENROUTE_API_KEY = process.env.OPENROUTE_API_KEY;
 
 app.post("/signup", async (req, res) => {
-    console.log(req.body);
-    const { email, password } = req.body;
-    try {
-        const response = await axios.post(
-            `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
-            {
-                email,
-                password,
-                returnSecureToken: true
-            }
-        ).catch((err) => {
-            console.log(err.response.data);
-            res.json({ error: err.response.data.error.message })
-            return
-        });
+  console.log(req.body);
+  const { email, password } = req.body;
+  try {
+    const response = await axios.post(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
+      {
+        email,
+        password,
+        returnSecureToken: true
+      }
+    ).catch((err) => {
+      console.log(err.response.data);
+      res.json({ error: err.response.data.error.message })
+      return
+    });
 
-        res.json({
-            message: "User created",
-            userId: response.data.localId,
-            idToken: response.data.idToken
-        });
+    res.json({
+      message: "User created",
+      userId: response.data.localId,
+      idToken: response.data.idToken
+    });
 
 
-    } catch (err) {
-        console.log(`${err}`)
-    }
+  } catch (err) {
+    console.log(`${err}`)
+  }
 })
 
 app.post("/google-signin", async (req, res) => {
-    const { credential } = req.body;
+  const { credential } = req.body;
 
-    try {
-        const response = await axios.post(
-            `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${API_KEY}`,
-            {
-                postBody: `id_token=${credential}&providerId=google.com`,
-                requestUri: "http://localhost:3000",
-                returnIdpCredential: true,
-                returnSecureToken: true,
-            }
-        );
+  try {
+    const response = await axios.post(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${API_KEY}`,
+      {
+        postBody: `id_token=${credential}&providerId=google.com`,
+        requestUri: "https://capstone-project-frontend.ue.r.appspot.com",
+        returnIdpCredential: true,
+        returnSecureToken: true,
+      }
+    );
 
-        const idToken = response.data.idToken;
+    const idToken = response.data.idToken;
 
-        res.cookie("token", idToken, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "lax",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
+    res.cookie("token", idToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/"
+    });
 
-        res.json({
-            message: "Google sign-in success",
-            idToken: response.data.idToken,
-            refreshToken: response.data.refreshToken,
-            localId: response.data.localId,
-            email: response.data.email,
-        });
-    } catch (error) {
-        console.log("error is ", error.response.data);
-        res.status(400).json({
-            error: error.response.data.error.message,
-        });
-    }
+    res.json({
+      message: "Google sign-in success",
+      idToken: response.data.idToken,
+      refreshToken: response.data.refreshToken,
+      localId: response.data.localId,
+      email: response.data.email,
+    });
+  } catch (error) {
+    console.log("error is ", error.response.data);
+    res.status(400).json({
+      error: error.response.data.error.message,
+    });
+  }
 });
 
 
 app.post("/login", async (req, res) => {
-    const { email, password } = req.body;
-    try {
-        const response = await axios.post(
-            `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`,
-            {
-                email,
-                password,
-                returnSecureToken: true
-            }
-        ).catch((err) => {
-            res.json({ error: err.response.data.error.message })
-            return
-        });
+  const { email, password } = req.body;
+  try {
+    const response = await axios.post(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`,
+      {
+        email,
+        password,
+        returnSecureToken: true
+      }
+    ).catch((err) => {
+      res.json({ error: err.response.data.error.message })
+      return
+    });
 
-        const idToken = response.data.idToken;
+    const idToken = response.data.idToken;
 
-        res.cookie("token", idToken, {
-            httpOnly: true,
-            secure: false, //need to change when hosting
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            sameSite: 'lax',
-            path: "/"
-        });
+    res.cookie("token", idToken, {
+      httpOnly: true,
+      secure: true, //need to change when hosting
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: 'none',
+      path: "/"
+    });
 
-        res.status(200).json({
-            message: "Login successful",
-            userId: response.data.localId,
+    res.status(200).json({
+      message: "Login successful",
+      userId: response.data.localId,
 
-        });
-    } catch (error) {
-        res.status(400).json({
-            error: error.response.data.error.message
-        });
-    }
+    });
+  } catch (error) {
+    res.status(400).json({
+      error: error.response.data.error.message
+    });
+  }
 });
 
 app.get("/login-state", (req, res) => {
-    const token = req.cookies.token;
+  const token = req.cookies.token;
 
-    if (!token) {
-        return res.status(401).json({ loggedIn: false });
-    }
+  if (!token) {
+    return res.status(401).json({ loggedIn: false });
+  }
 
-    try {
-        // decode token to get email/userId
-        const decoded = jwt.decode(token);
+  try {
+    // decode token to get email/userId
+    const decoded = jwt.decode(token);
 
-        return res.json({
-            loggedIn: true,
-            email: decoded.email,
-            userId: decoded.user_id
-        });
+    return res.json({
+      loggedIn: true,
+      email: decoded.email,
+      userId: decoded.user_id
+    });
 
-    } catch (err) {
-        return res.status(401).json({ loggedIn: false });
-    }
+  } catch (err) {
+    return res.status(401).json({ loggedIn: false });
+  }
 });
 
 app.post("/logout", (req, res) => {
-    try {
-        res.clearCookie("token", {
-            httpOnly: true,
-            secure: false, //need to change to true when deployed
-            sameSite: "lax",
-            path: "/"
-        });
+  try {
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: true, //need to change to true when deployed
+      sameSite: "none",
+      path: "/"
+    });
 
-        return res.json({ message: "Logged out successfully" });
-    } catch (err) {
-        console.log(err);
-    }
+    return res.json({ message: "Logged out successfully" });
+  } catch (err) {
+    console.log(err);
+  }
 
 });
 
 
 app.post("/api/cookbot", async (req, res) => {
-    const { message } = req.body;
+  const { message } = req.body;
 
-    try {
-        const response = await axios.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            {
-                model: "meta-llama/llama-3-8b-instruct",
-                messages: [
-                    {
-                        role: "system",
-                        content: `
+  try {
+    const response = await axios.post(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        model: "meta-llama/llama-3-8b-instruct",
+        messages: [
+          {
+            role: "system",
+            content: `
 You are CookMate, an AI cooking assistant.  
 You ONLY respond to questions about:
 - cooking  
@@ -204,73 +214,73 @@ You ONLY respond to questions about:
 If the user asks anything unrelated, politely say:
 "I'm here only to help with cooking and recipes!"  
 `
-                    },
-                    { role: "user", content: message }
-                ]
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${OPENROUTE_API_KEY}`,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
+          },
+          { role: "user", content: message }
+        ]
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${OPENROUTE_API_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
-        res.json({ reply: response.data.choices[0].message.content });
+    res.json({ reply: response.data.choices[0].message.content });
 
-    } catch (err) {
-        console.error(err.response?.data || err);
-        res.status(500).json({ error: "Cooking AI error" });
-    }
+  } catch (err) {
+    console.error(err.response?.data || err);
+    res.status(500).json({ error: "Cooking AI error" });
+  }
 });
 
 app.get("/recipes/:category", async (req, res) => {
-    const { category } = req.params;
-    console.log(category);
-    try {
-        const response = await axios.get(
-            `https://www.themealdb.com/api/json/v1/1/filter.php?c=${category}`
-        );
-        console.log(response.data);
-        res.json(response.data);
+  const { category } = req.params;
+  console.log(category);
+  try {
+    const response = await axios.get(
+      `https://www.themealdb.com/api/json/v1/1/filter.php?c=${category}`
+    );
+    console.log(response.data);
+    res.json(response.data);
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Failed to fetch recipes" });
-    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch recipes" });
+  }
 });
 
 app.get("/recipes/type/:category", async (req, res) => {
-    const { category } = req.params;
-    console.log(category);
-    try {
-        const response = await axios.get(
-            `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${category}`
-        );
-        res.json(response.data.meals);
+  const { category } = req.params;
+  console.log(category);
+  try {
+    const response = await axios.get(
+      `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${category}`
+    );
+    res.json(response.data.meals);
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Failed to fetch recipes" });
-    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch recipes" });
+  }
 });
 
 app.get("/api/recipes/random", async (req, res) => {
-    try {
-        const promises = Array.from({ length: 50 }, () =>
-            axios.get("https://www.themealdb.com/api/json/v1/1/random.php").then(r => r.data.meals[0])
-        );
-        const meals = await Promise.all(promises);
-        console.log(meals);
-        res.json(meals);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Failed to fetch random recipes" });
-    }
+  try {
+    const promises = Array.from({ length: 50 }, () =>
+      axios.get("https://www.themealdb.com/api/json/v1/1/random.php").then(r => r.data.meals[0])
+    );
+    const meals = await Promise.all(promises);
+    console.log(meals);
+    res.json(meals);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch random recipes" });
+  }
 });
 
 //CRUD operations to add, update, read and delete the recipes of the user
-const upload = multer(); 
+const upload = multer();
 
 app.post("/add-recipe", upload.single("image"), async (req, res) => {
   const userId = req.body.userId;
@@ -281,7 +291,7 @@ app.post("/add-recipe", upload.single("image"), async (req, res) => {
   const ingredients = JSON.parse(req.body.ingredients || "[]");
   const instructions = req.body.instructions;
   const youtubeUrl = req.body.youtubeUrl;
-  const image = req.file; 
+  const image = req.file;
 
   console.log({
     userId,
@@ -326,10 +336,23 @@ app.get("/get-own-recipes/:id", async (req, res) => {
       .toArray();
 
     const formattedRecipes = recipes.map(recipe => {
+      // let imageUrl = null;
+
+      // if (recipe.image && recipe.image.buffer) {
+      //   imageUrl = `data:image/jpeg;base64,${recipe.image.buffer.toString("base64")}`;
+      // }
       let imageUrl = null;
 
-      if (recipe.image && recipe.image.buffer) {
-        imageUrl = `data:image/jpeg;base64,${recipe.image.buffer.toString("base64")}`;
+      if (recipe.image) {
+        // MongoDB Binary safe conversion
+        const base64 =
+          Buffer.isBuffer(recipe.image)
+            ? recipe.image.toString("base64")
+            : recipe.image.buffer
+              ? Buffer.from(recipe.image.buffer).toString("base64")
+              : recipe.image.toString("base64");
+
+        imageUrl = `data:image/jpeg;base64,${base64}`;
       }
 
       return {
@@ -338,7 +361,7 @@ app.get("/get-own-recipes/:id", async (req, res) => {
       };
     });
 
-    res.json(formattedRecipes); 
+    res.json(formattedRecipes);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -361,10 +384,10 @@ app.put("/add-recipe/:id", upload.single("image"), async (req, res) => {
     };
 
     if (req.file) {
-      updatedFields.image = req.file.buffer; 
+      updatedFields.image = req.file.buffer;
     }
 
-     const result = await db
+    const result = await db
       .collection("recipes")
       .updateOne(
         { _id: new ObjectId(recipeId) },
@@ -428,5 +451,5 @@ app.get("/recipe/own/:id", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log("Server listening on port", PORT);
+  console.log("Server listening on port", PORT);
 });
