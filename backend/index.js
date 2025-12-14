@@ -32,7 +32,7 @@ try {
   console.log("MongoDB connected successfully");
 } catch (err) {
   console.error("MongoDB connection failed", err);
-  process.exit(1); // 🔥 DO NOT start server without DB
+  process.exit(1);
 }
 
 
@@ -131,7 +131,7 @@ app.post("/login", async (req, res) => {
 
     res.cookie("token", idToken, {
       httpOnly: true,
-      secure: true, //need to change when hosting
+      secure: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       sameSite: 'none',
       path: "/"

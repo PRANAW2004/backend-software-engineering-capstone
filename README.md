@@ -2,7 +2,7 @@
 
 - frontend link: https://capstone-project-frontend.ue.r.appspot.com/
 - backend link: https://exalted-legacy-481104-h4.ue.r.appspot.com/
-- video link: 
+- video link: https://drive.google.com/file/d/1LrO3nwS1HHU9o2UkVcNtISQJgRtPiyM1/view?usp=drive_link
 
 ## DEV CONTAINER INFORMATION
 - The Dev container used in this project is the Docker container.
